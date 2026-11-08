@@ -27,7 +27,8 @@ jobs:
 
       - name: Install SmartPy (pinned by hash)
         timeout-minutes: 5
-        run: python -m pip install --require-hashes --only-binary :all: -r tezos/requirements.txt
+        run: |
+          python -m pip install --require-hashes --only-binary :all: -r tezos/requirements.txt
 
       - name: Run the contract tests
         timeout-minutes: 10
