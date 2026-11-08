@@ -46,7 +46,8 @@ artworks directly to collectors.
 7. One stolen wallet can't take sold tokens, sell below a floor, or redirect money; the other
    wallet can block anything it starts; and it can't stop or redirect a change both wallets
    voted for.
-8. The payout contract's `default` never fails for any payer and any amount.
+8. The payout contract's `default` refuses no payment, from any payer and of any amount (an
+   operation still needs enough gas, like any other).
 9. No entry point can be locked by unbounded data or gas.
 
 ## Checklist

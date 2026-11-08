@@ -38,7 +38,8 @@ and N copies of it make an edition.
   refuses anything under the floors of the copies and sends the whole payment on to the payout
   contract in the same operation.
 - **An artwork's metadata is final at registration.** It must be an IPFS link to a base32 CIDv1
-  (`ipfs://baf…`), no entry point can change it, and the same link can't be registered twice.
+  (the contract accepts only links starting `ipfs://baf`), no entry point can change it, and the
+  same link can't be registered twice.
   An artwork registered by mistake can be retired while no copy exists, which frees its link.
 - Later exhibitions and publications go in an append-only history log: up to 500 bytes of
   UTF-8 text and an optional `ipfs://` or `https://` link per record.
@@ -71,7 +72,8 @@ entry points and views.
 
 ### Run
 
-Python 3.10–3.13. Linux or macOS (Apple Silicon runs natively; Intel Macs need Docker).
+Python 3.10 or newer. SmartPy runs natively on Linux x86-64 and Apple Silicon Macs; other
+machines need Docker.
 
 ```bash
 python3 -m venv tezos/.venv
@@ -101,7 +103,8 @@ tezos/.venv/bin/python tezos/deploy/check.py --network shadownet tezos/deploymen
 ### Check a deployment
 
 Every deployment is tagged on the exact commit it was built from. Check out the tag, install the
-pinned SmartPy, and compare the code your build produces with the code on chain:
+pinned SmartPy, rebuild each contract with `build.py` and the addresses in its
+`<name>.storage.json` (git should show no change), then compare it with the chain:
 
 ```bash
 tezos/.venv/bin/python tezos/deploy/verify.py --network shadownet \

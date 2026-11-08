@@ -2,8 +2,9 @@
 
 SmartPy's .tz output carries a stack-type comment on every line (10 MB for
 the collection contract); the code itself is the same as its .json output.
-This writes that .json as plain Michelson, small enough to paste into a
-deploy page. deploy/verify.py then checks the deployed code exactly.
+This writes that .json as plain Michelson, to read. Deploy the .json, never
+this text: SmartPy rewrites pasted Michelson. deploy/verify.py checks the
+deployed code exactly.
 """
 
 import json

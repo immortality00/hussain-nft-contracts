@@ -10,9 +10,11 @@ Deploy in this order (each needs the addresses of the ones before):
         --admin tz1... --guardian tz1... --collection KT1...
 
 --wallet is the payout wallet; --payout is the payout contract.
-Writes tezos/deployments/<network>-<version>/<name>.tz and <name>.storage.tz
-(plus .json). Paste those two .tz files into SmartPy's deploy page
-(smartpy.io/origination) and sign with the admin wallet.
+Writes tezos/deployments/<network>-<version>/<name>.json and
+<name>.storage.json, plus .tz copies to read. Deploy the two .json files on
+smartpy.io/origination with its JSON input and sign with the admin wallet.
+Never paste the .tz text: SmartPy rewrites pasted Michelson, so the deployed
+code would no longer match the build.
 """
 
 import argparse

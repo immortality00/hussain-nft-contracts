@@ -16,7 +16,10 @@ vulnerability**. Please don't open a public issue for anything that could put co
 - **Two wallets, one rule.** Changing an admin, a guardian, a minter or the payout wallet needs
   both wallets' votes for the same address, or one wallet's vote and 48 hours in which the other
   wallet can object. Each wallet can only change its own vote. Every vote emits an event, and
-  hussain.art alerts the owner on each one.
+  hussain.art will alert the owner on each one.
+- **hussain.art's part is not built yet.** The alerts, and the site's rules below (showing only
+  what it registered and wrote itself), come with the site's minting pages, before any mainnet
+  deployment. On Shadownet nothing of value is at stake.
 - **A floor price per artwork, fixed at registration and enforced by the permanent collection on
   every mint**, whichever minter sends it. The payment always goes on to the payout contract in
   the same operation.
@@ -57,17 +60,17 @@ wallet with both, then accept with the new one.
   wanted. This keeps a decision from outliving the wallets that made it.
 - **A thief with the admin wallet can register a counterfeit** under a different metadata link (a
   link already registered is refused and only base32 CIDv1 links are accepted, but the same file
-  under another path, or a copy of the file, is not) and sell it, the money going to the owner's payout wallet. hussain.art shows only the
-  artworks it registered itself and alerts on every registration; the owner then replaces the
-  admin wallet with both wallets.
+  under another path, or a copy of the file, is not) and sell it, the money going to the owner's
+  payout wallet. hussain.art will show only the artworks it registered itself and alert on every
+  registration; the owner then replaces the admin wallet with both wallets.
 - **A thief with the admin wallet can add history records**, which can never be removed: up to 500
-  bytes of text and an `ipfs://` or `https://` link each. hussain.art shows only the records it
-  wrote itself, and must escape the text it shows.
+  bytes of text and an `ipfs://` or `https://` link each. hussain.art will show only the records
+  it wrote itself, and must escape the text it shows.
 - **Keep a little tez in the payout wallet.** If it is ever emptied, Tezos deletes the account, and
   the next payment pays about 0.064 tez to create it again. Nothing in the payout contract
   refuses a payment, but like any operation one still needs enough gas.
 - **The admin of each contract is separate.** Changing wallets means changing all three
-  contracts; hussain.art does it in one signature per wallet.
+  contracts; hussain.art will do it in one signature per wallet.
 - **Fixed-price sales are first come, first served.** A bot can buy as fast as anyone, up to the
   per-purchase limit each time (OpenTezos flaw 6). This is accepted for fixed-price editions.
 - **Copies can be burned by their owners only.** Burning lowers the supply but never the count of
