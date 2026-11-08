@@ -38,6 +38,23 @@ def test_caps():
     sc.verify(env.collection.data.editions[limited].minted == 25)
     mint(env, limited, 1, buyer, _valid=False, _exception="EDITION_FULL")
 
+    sc.h2("A batch can't pass the cap by naming the same artwork twice")
+    three = register(env, cap=3)
+    alice = env.acc.alice
+    over = [sp.record(to_=buyer.address, token_id=three, amount=2),
+            sp.record(to_=alice.address, token_id=three, amount=2)]
+    env.collection.mint(over, _sender=env.acc.minter, _amount=sp.mutez(4), _now=at(NOW),
+                        _valid=False, _exception="EDITION_FULL")
+    sc.verify(env.collection.data.editions[three].minted == 0)
+    exact = [sp.record(to_=buyer.address, token_id=three, amount=2),
+             sp.record(to_=alice.address, token_id=three, amount=1)]
+    env.collection.mint(exact, _sender=env.acc.minter, _amount=sp.mutez(3), _now=at(NOW))
+    sc.verify(env.collection.data.editions[three].minted == 3)
+    sc.verify(env.collection.data.supply[three] == 3)
+    sc.verify(balance(env.collection, buyer, three) == 2)
+    sc.verify(balance(env.collection, alice, three) == 1)
+    mint(env, three, 1, buyer, _valid=False, _exception="EDITION_FULL")
+
 
 @sp.add_test()
 def test_open_edition_end():
