@@ -1,0 +1,15 @@
+# Secrets never exist in this repo; this is a guard.
+.env*
+*.key
+*.secret
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# SmartPy test and compile output
+tezos/build/
+
+# macOS
+.DS_Store
