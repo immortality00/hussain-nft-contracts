@@ -9,7 +9,7 @@ import json
 
 import smartpy as sp
 
-SMARTPY_VERSION = "0.25.1"
+SMARTPY_VERSION = "0.25.2"
 REPO = "https://github.com/immortality00/hussain-nft-contracts"
 
 
@@ -22,7 +22,7 @@ def _common(name, description, interfaces):
     return {
         "name": name,
         "description": description,
-        "version": "1.0.0",
+        "version": "2.0.0",
         "homepage": "https://hussain.art",
         "authors": ["Hussain Marzooq <https://hussain.art>"],
         "license": {"name": "MIT"},

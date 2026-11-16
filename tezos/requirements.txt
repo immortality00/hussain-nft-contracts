@@ -1,7 +1,7 @@
 # SmartPy and its dependencies, pinned by hash.
 # Install: python3 -m pip install --require-hashes --only-binary :all: -r tezos/requirements.txt
-smartpy-tezos==0.25.1 \
-    --hash=sha256:f2fdfe6fee93036fe96ad4cd400e0c1cb0f702a42d58e22356731fd872b0659d
+smartpy-tezos==0.25.2 \
+    --hash=sha256:9eacd3cbe1e9093d41a07b8c8247ac2715583dfd8a8e8fb0491d47cc46e88d91
 requests==2.34.2 \
     --hash=sha256:2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0
 certifi==2026.10.23 \

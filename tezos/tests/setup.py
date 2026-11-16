@@ -30,9 +30,15 @@ def at(seconds):
     return sp.timestamp(seconds)
 
 
+B32 = "abcdefghijklmnopqrstuvwxyz234567"
+
+
 def ipfs(n=0):
-    """A distinct IPFS metadata link for artwork n."""
-    return utf8("ipfs://%s/%d" % (CID, n))
+    """A distinct metadata link for artwork n: the test CID (a raw CIDv1) with
+    the three characters before its last replaced by n in base32, so it stays a
+    valid link (the last character carries unused bits and is kept)."""
+    middle = "".join(B32[(n >> shift) & 31] for shift in (10, 5, 0))
+    return utf8("ipfs://%s%s%s" % (CID[:-4], middle, CID[-1]))
 
 
 def accounts():
@@ -84,13 +90,14 @@ def some(value):
     return None if value is None else sp.Some(value)
 
 
-def register(env, cap=None, mint_end=None, floor=1, now=T0 + DELAY):
-    """Register an artwork (mint_end in seconds, floor in mutez); returns its token id."""
+def register(env, cap=None, mint_end=None, floor=1, now=T0 + DELAY, commercial_floor=None):
+    """Register an artwork (mint_end in seconds, floors in mutez); returns its token id."""
     env.collection.register(
         metadata_uri=ipfs(env.next_id),
         cap=some(cap),
         mint_end=some(None if mint_end is None else at(mint_end)),
         floor=sp.mutez(floor),
+        commercial_floor=some(None if commercial_floor is None else sp.mutez(commercial_floor)),
         _sender=env.acc.admin,
         _now=at(now),
     )
@@ -117,23 +124,46 @@ def balance(c, owner, token_id):
 
 def payments(scenario):
     """Every payment that reached a wallet in a finished scenario, in order:
-    (mutez, wallet address). Only a wallet counts: SmartPy's log also lists
-    the outputs of an operation that later fails, but a payment to a wallet
-    is always the last step of a purchase, so it is logged only if the whole
-    purchase went through."""
-    out, block = [], None
+    (mutez, wallet address), from operations that went through only.
+
+    SmartPy's log lists each top-level call, then every transfer it emits and
+    every internal call they make, including the steps of an operation that
+    fails later on: its "Expected error" line comes after them. So each
+    top-level operation's payments are held apart and counted only if no error
+    follows before the next one starts. A top-level call is an "Executing"
+    line that no pending transfer to a contract accounts for."""
+    out, current, failed, pending, block = [], [], False, 0, None
+
+    def close():
+        nonlocal current, failed, pending
+        if not failed:
+            out.extend(current)
+        current, failed, pending = [], False, 0
+
     with open(os.path.join(scenario, "log.txt")) as log:
         for line in log:
             text = line.strip()
-            if text == "+ Transfer":
+            if text.startswith("Executing "):
+                if pending:
+                    pending -= 1
+                else:
+                    close()
+            elif text.startswith("Expected error"):
+                failed, pending = True, 0
+            elif text.startswith(("Verifying", "Comment", "Creating contract")):
+                close()
+            elif text == "+ Transfer":
                 block = {}
             elif block is not None and text.startswith(("params:", "amount:", "to:")):
                 key, value = text.split(":", 1)
                 block[key] = value.strip()
                 if key == "to":
                     address = re.search(r"sp\.address\('([^']+)'\)", value).group(1)
-                    if block["params"] == "()" and address.startswith("tz"):
+                    if address.startswith("KT1"):
+                        pending += 1
+                    elif block["params"] == "()":
                         unit, number = re.fullmatch(r"sp\.(tez|mutez)\((\d+)\)", block["amount"]).groups()
-                        out.append((int(number) * (1_000_000 if unit == "tez" else 1), address))
+                        current.append((int(number) * (1_000_000 if unit == "tez" else 1), address))
                     block = None
+    close()
     return out

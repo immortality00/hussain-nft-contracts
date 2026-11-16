@@ -3,9 +3,11 @@
 The library's transfer, update_operators, balance_of and burn accept tez
 that nothing could ever send back. These are the library's own bodies,
 unchanged, with one added first line: refuse any tez sent with the call.
-One more change, in burn: only a copy's owner can burn it. The library
+Two more changes. In burn, only a copy's owner can burn it: the library
 also lets the owner's operators burn, which would let a marketplace that
-was approved to sell a copy destroy it instead.
+was approved to sell a copy destroy it instead. In transfer, no copy can be
+sent to this contract or to the payout contract, which could never move it
+again.
 
 Adapted from SmartPy's FA2 library (smartpy-tezos 0.25.1, templates/fa2_lib.py):
 
@@ -43,8 +45,10 @@ def fa2_no_tez():
     import t
 
     class NoTezFungible(main.Fungible):
-        def __init__(self, metadata):
+        def __init__(self, metadata, payout):
             main.Fungible.__init__(self, metadata, {}, [])
+            # The payout contract: every payment goes there, and no copy can.
+            self.data.payout = sp.cast(payout, sp.address)
 
         @sp.entrypoint
         def update_operators(self, batch):
@@ -92,6 +96,13 @@ def fa2_no_tez():
                         # The ordering of assert is important:
                         # 1) token_undefined, 2) transfer permission 3) balance
                         assert self.is_defined_(tx.token_id), "FA2_TOKEN_UNDEFINED"
+                        # A copy sent to an address carrying an entrypoint
+                        # ("tz1...%foo", which packs longer than the 28 bytes of
+                        # any plain address) could never be moved again, since
+                        # no caller is ever that address; nor one sent to this
+                        # contract or the payout contract.
+                        assert sp.len(sp.pack(tx.to_)) == 28, "BAD_RECIPIENT"
+                        assert tx.to_ != sp.self_address and tx.to_ != self.data.payout, "BAD_RECIPIENT"
                         _ = self.check_tx_transfer_permissions_(
                             sp.record(
                                 from_=transfer.from_, to_=tx.to_, token_id=tx.token_id

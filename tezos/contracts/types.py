@@ -13,6 +13,13 @@ def htypes():
     # cap: None is an open edition (it must then have a mint_end).
     # minted: copies ever minted; burning never lowers it.
     # floor: the lowest price any sale may ever ask, fixed at registration.
+    # commercial_floor: the lowest price of the artwork's commercial rights,
+    # fixed at registration. None: they are never offered. Only a 1/1 can
+    # offer them.
+    # commercial: the commercial rights mark. Set once, when paid for, and
+    # never cleared. It belongs to the token: whoever holds the 1/1 has it.
+    # The layout is pinned: the permanent collection's `edition` view returns
+    # this record, and every future minter must read it with this exact type.
     edition: type = sp.record(
         cap=sp.option[sp.nat],
         minted=sp.nat,
@@ -20,13 +27,23 @@ def htypes():
         floor=sp.mutez,
         retired=sp.bool,
         history_count=sp.nat,
-    )
+        commercial_floor=sp.option[sp.mutez],
+        commercial=sp.bool,
+    ).layout(("cap", ("commercial", ("commercial_floor", ("floor", ("history_count",
+              ("mint_end", ("minted", "retired"))))))))
 
     mint_request: type = sp.record(
         to_=sp.address,
         token_id=sp.nat,
         amount=sp.nat,
     ).layout(("to_", ("token_id", "amount")))
+
+    # A minter's request to add the commercial rights mark to the 1/1 that
+    # `holder` holds.
+    commercial_request: type = sp.record(
+        token_id=sp.nat,
+        holder=sp.address,
+    ).layout(("token_id", "holder"))
 
     # One record in an artwork's history log (an exhibition, a publication).
     # text and uri are UTF-8 bytes: Michelson strings only allow ASCII.

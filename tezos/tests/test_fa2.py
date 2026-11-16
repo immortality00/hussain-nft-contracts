@@ -1,7 +1,8 @@
 """FA2 behaviour from the library, and tez refused on every entry point.
 
-Only buy and mint (the price, passed straight on) and the payout contract's
-default take tez; every other entry point of the three contracts refuses it.
+Only buy, buy_commercial_rights, mint and add_commercial_rights (each passes
+the price straight on) and the payout contract's default take tez; every
+other entry point of the three contracts refuses it.
 """
 
 import smartpy as sp
@@ -67,6 +68,12 @@ def test_transfers_and_operators():
         sp.record(to_=bob.address, token_id=77, amount=1)])],
         _sender=alice, _now=at(NOW), _valid=False, _exception="FA2_TOKEN_UNDEFINED")
 
+    sc.h2("No copy can be sent to the collection or the payout contract, which could never move it")
+    for contract in (c, env.payout):
+        c.transfer([sp.record(from_=alice.address, txs=[
+            sp.record(to_=contract.address, token_id=art, amount=1)])],
+            _sender=alice, _now=at(NOW), _valid=False, _exception="BAD_RECIPIENT")
+
     sc.h2("Only a copy's owner burns it, not even an operator allowed to move it")
     c.burn([sp.record(from_=alice.address, token_id=art, amount=1)], _sender=bob, _now=at(NOW),
            _valid=False, _exception="FA2_NOT_OWNER")
@@ -115,7 +122,7 @@ def test_tez_refused_everywhere():
     cb = sp.contract(sp.list[t.balance_of_response], r.address, entrypoint="receive").unwrap_some()
     c.balance_of(sp.record(requests=[], callback=cb), _sender=alice, **no)
     c.register(metadata_uri=ipfs(50), cap=sp.Some(1), mint_end=None, floor=sp.mutez(1),
-               _sender=admin, **no)
+               commercial_floor=None, _sender=admin, **no)
     c.retire(art, _sender=admin, **no)
     c.add_history(token_id=art, text=utf8("x"), uri=None, _sender=admin, **no)
     c.propose_minter(alice.address, _sender=admin, **no)
@@ -127,6 +134,8 @@ def test_tez_refused_everywhere():
     s.remove_sale(art, _sender=admin, **no)
     s.set_paused(True, _sender=admin, **no)
     s.set_sale_paused(token_id=art, paused=True, _sender=admin, **no)
+    s.set_commercial_price(token_id=art, price=sp.mutez(1), _sender=admin, **no)
+    s.remove_commercial_price(art, _sender=admin, **no)
     p.propose_payout(alice.address, _sender=admin, **no)
     p.cancel_payout(_sender=guardian, **no)
     p.accept_payout(alice.public_key, _sender=alice, **no)

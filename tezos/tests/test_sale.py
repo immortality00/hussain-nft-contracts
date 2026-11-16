@@ -14,6 +14,7 @@ def buy(env, token_id, quantity, paid, now=NOW, buyer=None, recipient=None, **kw
         token_id=token_id,
         quantity=quantity,
         recipient=(recipient or buyer).address,
+        commercial=False,
         _sender=buyer,
         _amount=sp.mutez(paid),
         _now=at(now),
@@ -66,8 +67,8 @@ def test_recipient():
     art = register(env, cap=5)
     list_for_sale(env, art, price=PRICE)
     for contract in (env.collection, env.sale, env.payout):
-        env.sale.buy(token_id=art, quantity=1, recipient=contract.address, _sender=env.acc.buyer,
-                     _amount=sp.mutez(PRICE), _now=at(NOW), _valid=False,
+        env.sale.buy(token_id=art, quantity=1, recipient=contract.address, commercial=False,
+                     _sender=env.acc.buyer, _amount=sp.mutez(PRICE), _now=at(NOW), _valid=False,
                      _exception="BAD_RECIPIENT")
     sc.verify(env.collection.data.editions[art].minted == 0)
 

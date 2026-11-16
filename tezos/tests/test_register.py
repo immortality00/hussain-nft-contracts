@@ -14,6 +14,7 @@ def try_register(env, uri=None, cap=None, mint_end=None, floor=1, sender=None, *
         cap=some(cap),
         mint_end=some(None if mint_end is None else at(mint_end)),
         floor=sp.mutez(floor),
+        commercial_floor=None,
         _sender=sender or env.acc.admin,
         _now=at(NOW),
         **kwargs,
@@ -55,12 +56,16 @@ def test_register():
                  _valid=False, _exception="NOT_IPFS")
     try_register(env, uri=utf8("ipfs://k2k4r8jl0yz8qjgqbmc2cdu5hkqek5rj6flgnlkyywynci20j0iuyfuj"),
                  cap=1, _valid=False, _exception="NOT_IPFS")
-    try_register(env, uri=utf8("ipfs://" + CID[:58]), cap=1, _valid=False, _exception="BAD_URI")
-    try_register(env, uri=utf8("ipfs://" + CID + "/" + "a" * 190), cap=1,
-                 _valid=False, _exception="BAD_URI")
+    sc.h3("One link per file: the bare raw CID, nothing after it, base32 characters only")
+    for bad in (CID[:58], CID + "/", CID + "?x", CID + "#x", CID + "/" + "a" * 189,
+                CID[:-1] + "A", CID[:-1] + "1", CID[:-1] + "/", CID[:-1] + "5", CID[:-1] + "7",
+                CID[:20] + "B" + CID[21:]):
+        try_register(env, uri=utf8("ipfs://" + bad), cap=1, _valid=False, _exception="BAD_URI")
+    sc.h3("The same file's dag-pb CID is another link to it, so it is refused")
+    try_register(env, uri=utf8("ipfs://bafybei" + CID[7:]), cap=1, _valid=False,
+                 _exception="NOT_IPFS")
     try_register(env, uri=utf8("ipfs://" + CID), cap=1)
-    try_register(env, uri=utf8("ipfs://" + CID + "/" + "a" * 189), cap=1)
-    sc.verify(c.data.next_token_id == 4)
+    sc.verify(c.data.next_token_id == 3)
 
 
 @sp.add_test()
@@ -77,14 +82,16 @@ def test_retire():
     c.retire(mistake, _sender=env.acc.guardian, _now=at(NOW), _valid=False, _exception="NOT_ADMIN")
     c.retire(mistake, _sender=env.acc.admin, _now=at(NOW))
     c.retire(mistake, _sender=env.acc.admin, _now=at(NOW), _valid=False, _exception="RETIRED")
-    sc.verify(~c.data.uris.contains(ipfs(mistake)))
     c.retire(42, _sender=env.acc.admin, _now=at(NOW), _valid=False, _exception="UNKNOWN_TOKEN")
     mint(env, mistake, 1, env.acc.buyer, _valid=False, _exception="RETIRED")
 
-    sc.h2("A retired artwork's metadata link can be registered again, as a new token")
+    sc.h2("A retired artwork's link stays used: its metadata never comes back as a new token")
+    sc.verify(c.data.uris[ipfs(mistake)] == mistake)
+    try_register(env, uri=ipfs(mistake), cap=3, _valid=False, _exception="URI_USED")
     try_register(env, uri=ipfs(sold), cap=1, _valid=False, _exception="URI_USED")
-    try_register(env, uri=ipfs(mistake), cap=3)
-    sc.verify(c.data.uris[ipfs(mistake)] == 2)
+    sc.h3("A corrected registration uses new metadata")
+    try_register(env, uri=ipfs(98), cap=3)
+    sc.verify(c.data.uris[ipfs(98)] == 2)
     sc.verify(c.data.editions[mistake].retired)
 
 

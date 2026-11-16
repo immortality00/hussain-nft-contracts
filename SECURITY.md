@@ -23,15 +23,22 @@ vulnerability**. Please don't open a public issue for anything that could put co
 - **A floor price per artwork, fixed at registration and enforced by the permanent collection on
   every mint**, whichever minter sends it. The payment always goes on to the payout contract in
   the same operation.
+- **Commercial rights the same way.** A 1/1's commercial floor is fixed at registration, and the
+  permanent collection adds the commercial rights mark only for the wallet holding the copy,
+  only when paid at least that floor (sent on to the payout contract in the same operation), and
+  only once. Nothing clears it.
 
 ## What a stolen wallet can and can't do
 
 **The admin wallet alone** can, at once:
 - list and reprice unsold copies, never below each artwork's floor, with the money still going to
   the payout wallet;
+- set or remove a 1/1's commercial price, never below its commercial floor, the money still going
+  to the payout wallet, and only the copy's holder (or, with the copy, its recipient) can buy the
+  rights;
 - register new artworks, never with metadata already registered;
 - add history records, pause or remove listings, pause all sales, retire an artwork no copy
-  exists of;
+  exists of (its link stays used, so its metadata can never come back with lower floors);
 - vote for a new admin, guardian, minter or payout wallet, which is ready after 48 hours unless
   the guardian objects. Even a minter added that way pays at least the floor for every copy, to
   the payout wallet.
@@ -39,7 +46,9 @@ vulnerability**. Please don't open a public issue for anything that could put co
 **The guardian wallet alone** can vote or object, pause all sales and remove a minter.
 
 **Neither can** take a sold copy, lower a floor, mint a copy for less than its floor, raise a cap,
-change metadata, send money anywhere but the payout wallet, or undo or redirect a change both wallets voted for. With both wallets in
+change metadata, add the commercial rights mark below its floor or for a wallet that doesn't hold
+the copy, clear the mark, send money anywhere but the payout wallet, or undo or redirect a change
+both wallets voted for. With both wallets in
 hand, the owner replaces a stolen one at once, and the thief can't stop it: vote for the new
 wallet with both, then accept with the new one.
 
@@ -59,16 +68,18 @@ wallet with both, then accept with the new one.
   kind of change, even one both wallets approved. The wallets vote again for anything still
   wanted. This keeps a decision from outliving the wallets that made it.
 - **A thief with the admin wallet can register a counterfeit** under a different metadata link (a
-  link already registered is refused and only base32 CIDv1 links are accepted, but the same file
-  under another path, or a copy of the file, is not) and sell it, the money going to the owner's
-  payout wallet. hussain.art will show only the artworks it registered itself and alert on every
+  link ever registered is refused, even after its artwork is retired, and a link must be the
+  file's raw CIDv1, so a file has one link; but a copy of the file with any change has a new
+  one) and sell it, the money going to the owner's payout wallet. hussain.art will show only the artworks it registered itself and alert on every
   registration; the owner then replaces the admin wallet with both wallets.
 - **A thief with the admin wallet can add history records**, which can never be removed: up to 500
   bytes of text and an `ipfs://` or `https://` link each. hussain.art will show only the records
   it wrote itself, and must escape the text it shows.
-- **Keep a little tez in the payout wallet.** If it is ever emptied, Tezos deletes the account, and
-  the next payment pays about 0.064 tez to create it again. Nothing in the payout contract
-  refuses a payment, but like any operation one still needs enough gas.
+- **Keep a little tez in the payout wallet, from before deployment on.** If it is ever emptied,
+  Tezos deletes the account, and the next payment pays about 0.064 tez to create it again: a
+  payer whose operation doesn't allow that storage, or can't pay it, fails, which could stop a
+  purchase or a marketplace's royalty payment. Nothing in the payout contract refuses a payment,
+  but like any operation one still needs enough gas.
 - **The admin of each contract is separate.** Changing wallets means changing all three
   contracts; hussain.art will do it in one signature per wallet.
 - **Fixed-price sales are first come, first served.** A bot can buy as fast as anyone, up to the
@@ -78,6 +89,25 @@ wallet with both, then accept with the new one.
 - **Operators can be approved for a token id before it is registered**, as FA2 allows. An operator
   can move a copy but never burn it.
 - **An open edition's end time has no upper limit.** It is the admin's choice at registration.
+- **Commercial rights are offered at registration or never.** A 1/1 registered without a
+  commercial floor can never have the mark, and an edition can never offer the rights.
+- **Any minter can add the mark for a copy's holder** by paying at least the commercial floor
+  itself, the money going to the payout wallet. A minter voted in by a stolen wallet could
+  give a holder the rights for that floor; the owner always receives at least the floor.
+- **Only the holder can buy the rights after the purchase**, since `buy_commercial_rights` names
+  its caller as the holder. A copy held by a contract (a marketplace escrow, a multisig) gets
+  them only if that contract makes the call.
+- **The mark stays on a burned token.** With no copy left, nobody holds the rights.
+- **A commercial price can outlive its use.** If another minter adds the mark, the sale contract
+  keeps that token's commercial price until the admin removes it; buying the rights then fails as
+  a whole, and nothing is paid.
+- **A copy can still be sent to the sale contract, or to any other address that can never move
+  it** (a mistyped one), as FA2 allows. That is its owner's choice, like burning it. Mints and
+  transfers to the collection, the payout contract or an address carrying an entrypoint are
+  refused.
+- **Marketplaces show only the fixed token metadata.** It says that commercial rights, when
+  bought, are recorded on-chain; the mark itself is read from the contract
+  (`has_commercial_rights`, or the `edition` view), which is what hussain.art shows.
 
 ## Review record
 
@@ -132,3 +162,29 @@ None found anything critical or high.
 | `ipfs://x` and other spellings of the same file were accepted | Low | ChatGPT | Links must now be a base32 CIDv1 (`ipfs://baf…`, 59 characters), so CIDv0 and base36 spellings are refused. Paths remain free; hussain.art builds each link from Pinata's answer |
 | "Never fails" depends on the operation having enough gas | Note | ChatGPT | Wording corrected in the README and Known limits. On Shadownet a royalty sent to the payout contract was passed on at once (README, Shadownet test) |
 | The collection should add the library's off-chain `token_metadata` view | Medium | Gemini | Not done, on purpose: TZIP-12 lets a contract provide token metadata through the `token_metadata` big map (which TzKT and objkt read) or an off-chain view, and an advertised view takes precedence. Publishing none, and locking the contract metadata, keeps every artwork's metadata in the big map where no one can change it |
+
+### Round 4: Claude Opus, Sonnet and Haiku, ChatGPT and Gemini, on the commercial rights version
+
+The whole code, including Round 3's floor and payment change, which no reviewer had seen. Before
+it: each new safeguard broken on purpose, every one caught by a test, and the OpenTezos flaw
+list. After it, Opus checked its own fixes in the final code.
+
+| Finding | Severity | Found by | What was done |
+|---|---|---|---|
+| A recipient carrying an entrypoint (`tz1…%foo`, `KT1…%mint`) passed the recipient checks and became a ledger owner no caller can ever be, stranding a paid copy and its commercial rights | Medium | ChatGPT | `mint` and `transfer` refuse any recipient whose packed address isn't the 28 bytes of a plain one (`BAD_RECIPIENT`). SmartPy's test simulator can't represent such addresses, so this was checked on Shadownet by simulating against the deployed contracts: the v1 collection accepts such a transfer; v2 refuses it, and a mint to one (README, Shadownet test of v2) |
+| The same file could be registered again under another link: a trailing `/`, `?`, `#`, a path or other characters, or (Opus, checking the first fix) another CID of the same bytes, dag-pb instead of raw or a last character with its unused bits set | Medium / low | ChatGPT, Sonnet, Haiku, Opus | A link must be exactly `ipfs://` and the file's raw CIDv1 (`bafkrei…`, base32, its last character canonical), which depends on the file's bytes alone. Tests: `test_register` |
+| Retiring an unsold artwork freed its exact link: a stolen admin key could re-register it with 1-mutez floors and buy it, getting round the floors fixed at registration | Low | Opus | A link is registered once, ever: `retire` keeps it used. Test: `test_retire` |
+| A copy could be transferred to the collection or the payout contract, which can never move it | Low | Haiku, Opus | `transfer` refuses both (`BAD_RECIPIENT`), as `mint` did. Test: `test_transfers_and_operators` |
+| The test helper that reads payments from the scenario log counted a payment whose operation failed later | Note | ChatGPT | It now counts only operations that went through. `test_rollback_after_mint` mints, then fails, and the old helper would have counted that payment |
+| The `edition` record, which the permanent view returns to every minter, had no pinned layout | Note | Opus | Pinned; the compiled code is unchanged |
+| Either wallet can remove a minter both approved | Medium | ChatGPT | Kept, as in Round 3: it is the emergency stop (Known limits) |
+| Completing a role change one wallet started voids an approval both wallets gave | Medium | ChatGPT | Kept, as in Round 3: a decision never outlives the wallets that made it; the other wallet objects within the 48 hours (Known limits) |
+| Admin and guardian could be the same wallet at deployment | Low / medium | ChatGPT, Sonnet, Haiku | Not possible on-chain: Tezos runs no code at deployment, so a contract can't check its starting storage. `build.py` refuses it, and `verify.py`, required before any deployment is used, checks it |
+| One wallet alone can add a minter after 48 hours if the other doesn't object | Medium (design) | Haiku | Kept: the rule since Round 2. Every vote emits an event for alerts, and even such a minter pays at least each copy's floor to the payout wallet |
+| A payment can fail when an emptied payout wallet must be created again and the payer's operation doesn't allow that storage | Low | ChatGPT | Known limit reworded: keep the payout wallet funded from before deployment on |
+| A commercial price outlives its use if another minter adds the mark | Low | Sonnet | Kept: buying the rights then fails as a whole and nothing is paid (Known limits) |
+| Any minter can add the mark for a holder by paying the commercial floor | Note | Haiku | Kept on purpose: never below the floor, always to the payout wallet (Known limits) |
+| An objection lapses after 9 days, like any vote | Note | Sonnet | Already under Known limits |
+| `balance_of` answering a wallet instead of a contract fails | Note | Haiku | Kept: FA2 sends the answer to a contract |
+
+Gemini found nothing at any severity.

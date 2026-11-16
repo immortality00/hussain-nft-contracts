@@ -6,18 +6,21 @@ CONTROL = {
 }
 
 COLLECTION_ENTRYPOINTS = CONTROL | {
-    "add_history", "balance_of", "burn", "mint", "register", "retire", "transfer",
-    "update_operators", "propose_minter", "cancel_minter", "confirm_minter",
-    "remove_minter",
+    "add_commercial_rights", "add_history", "balance_of", "burn", "mint", "register",
+    "retire", "transfer", "update_operators", "propose_minter", "cancel_minter",
+    "confirm_minter", "remove_minter",
 }
-COLLECTION_VIEWS = {"edition", "get_balance_of"}
+COLLECTION_VIEWS = {"edition", "get_balance_of", "has_commercial_rights"}
 
 PAYOUT_ENTRYPOINTS = CONTROL | {
     "default", "propose_payout", "cancel_payout", "accept_payout",
 }
 PAYOUT_VIEWS = set()
 
-SALE_ENTRYPOINTS = CONTROL | {"buy", "remove_sale", "set_paused", "set_sale", "set_sale_paused"}
+SALE_ENTRYPOINTS = CONTROL | {
+    "buy", "buy_commercial_rights", "remove_commercial_price", "remove_sale",
+    "set_commercial_price", "set_paused", "set_sale", "set_sale_paused",
+}
 SALE_VIEWS = set()
 
 

@@ -8,6 +8,12 @@ artwork's metadata can never change once registered, and the same metadata
 can never be registered twice. Later exhibitions and publications go in an
 append-only history log.
 
+A 1/1 can also offer commercial rights, with their own floor fixed at
+registration. A minter adds the commercial rights mark only for the wallet
+holding the copy, and only when paid at least that floor (sent on to the
+payout contract like a sale). The mark is set once, never cleared, and
+belongs to the token, so it follows the copy to every new owner.
+
 FA2 transfers, balances and operators are SmartPy's FA2 library
 (owner-or-operator transfer policy), refusing tez; only a copy's owner can
 burn it (see fa2_no_tez.py). Admin, guardian and minters: control.py and
@@ -42,10 +48,9 @@ def collection():
     ):
         def __init__(self, administrator, guardian, payout, metadata):
             main.OnchainviewBalanceOf.__init__(self)
-            fa2_no_tez.NoTezFungible.__init__(self, metadata)
-            minters.Minters.__init__(self, administrator, guardian)
             # The payout contract: every mint's payment goes there, at once.
-            self.data.payout = sp.cast(payout, sp.address)
+            fa2_no_tez.NoTezFungible.__init__(self, metadata, payout)
+            minters.Minters.__init__(self, administrator, guardian)
             self.data.editions = sp.cast(sp.big_map(), sp.big_map[sp.nat, htypes.edition])
             self.data.history = sp.cast(
                 sp.big_map(), sp.big_map[sp.pair[sp.nat, sp.nat], htypes.history_entry]
@@ -54,18 +59,30 @@ def collection():
             self.data.uris = sp.cast(sp.big_map(), sp.big_map[sp.bytes, sp.nat])
 
         @sp.entrypoint
-        def register(self, metadata_uri, cap, mint_end, floor):
+        def register(self, metadata_uri, cap, mint_end, floor, commercial_floor):
             sp.cast(metadata_uri, sp.bytes)
             sp.cast(cap, sp.option[sp.nat])
             sp.cast(mint_end, sp.option[sp.timestamp])
             sp.cast(floor, sp.mutez)
+            sp.cast(commercial_floor, sp.option[sp.mutez])
             self.only_admin_()
-            # Metadata must be an IPFS link (its content can never change) to a
-            # base32 CIDv1, "ipfs://baf..." (59 characters): one spelling per
-            # file, so it can't be registered twice in another encoding.
-            ipfs_cid_v1 = sp.bytes("0x697066733a2f2f626166")
-            assert sp.slice(0, 10, metadata_uri) == sp.Some(ipfs_cid_v1), "NOT_IPFS"
-            assert sp.len(metadata_uri) >= 66 and sp.len(metadata_uri) <= 256, "BAD_URI"
+            # Metadata must be an IPFS link (its content can never change) to the
+            # raw sha2-256 CIDv1 of the file and nothing else: "ipfs://bafkrei",
+            # 52 characters of a-z and 2-7, no path, the last one with its two
+            # unused bits zero. That link depends on the file's bytes alone, so
+            # the same file has one link and can't be registered twice.
+            ipfs_raw_cid = sp.bytes("0x697066733a2f2f6261666b726569")
+            assert sp.slice(0, 14, metadata_uri) == sp.Some(ipfs_raw_cid), "NOT_IPFS"
+            assert sp.len(metadata_uri) == 66, "BAD_URI"
+            last = sp.slice(65, 1, metadata_uri).unwrap_some()
+            canonical = {sp.bytes("0x61"), sp.bytes("0x65"), sp.bytes("0x69"), sp.bytes("0x6d"),
+                         sp.bytes("0x71"), sp.bytes("0x75"), sp.bytes("0x79"), sp.bytes("0x34")}
+            assert last in canonical, "BAD_URI"
+            for i in range(14, 65):
+                c = sp.slice(i, 1, metadata_uri).unwrap_some()
+                is_letter = c >= sp.bytes("0x61") and c <= sp.bytes("0x7a")
+                is_digit = c >= sp.bytes("0x32") and c <= sp.bytes("0x37")
+                assert is_letter or is_digit, "BAD_URI"
             assert not (metadata_uri in self.data.uris), "URI_USED"
             assert floor > sp.mutez(0), "FLOOR_ZERO"
             match cap:
@@ -78,19 +95,27 @@ def collection():
                     assert end > sp.now, "END_IN_PAST"
                 case None:
                     pass
+            match commercial_floor:
+                case Some(f):
+                    # Commercial rights travel with a single copy only.
+                    assert cap == sp.Some(sp.nat(1)), "NOT_SINGLE"
+                    assert f > sp.mutez(0), "FLOOR_ZERO"
+                case None:
+                    pass
             token_id = self.data.next_token_id
             self.data.token_metadata[token_id] = sp.record(
                 token_id=token_id, token_info={"": metadata_uri}
             )
             self.data.supply[token_id] = 0
             self.data.editions[token_id] = sp.record(
-                cap=cap, minted=0, mint_end=mint_end, floor=floor, retired=False, history_count=0
+                cap=cap, minted=0, mint_end=mint_end, floor=floor, retired=False, history_count=0,
+                commercial_floor=commercial_floor, commercial=False,
             )
             self.data.uris[metadata_uri] = token_id
             self.data.next_token_id += 1
             sp.emit(
                 sp.record(token_id=token_id, metadata_uri=metadata_uri, cap=cap,
-                          mint_end=mint_end, floor=floor),
+                          mint_end=mint_end, floor=floor, commercial_floor=commercial_floor),
                 tag="registered",
             )
 
@@ -102,8 +127,9 @@ def collection():
             assert edition.minted == 0, "ALREADY_MINTED"
             assert not edition.retired, "RETIRED"
             self.data.editions[token_id].retired = True
-            # Its metadata link is free again, to register correctly.
-            del self.data.uris[self.data.token_metadata[token_id].token_info[""]]
+            # Its metadata link stays used: a link is registered once, ever, so
+            # the same metadata can never come back as a new token with lower
+            # floors. A corrected registration needs new metadata.
             sp.emit(token_id, tag="retired")
 
         @sp.entrypoint
@@ -115,7 +141,9 @@ def collection():
                 edition = self.data.editions.get(request.token_id, error="UNKNOWN_TOKEN")
                 assert not edition.retired, "RETIRED"
                 assert request.amount > 0, "ZERO_AMOUNT"
-                # A copy sent to one of these contracts could never be moved again.
+                # A copy sent to an address carrying an entrypoint, or to one of
+                # these contracts, could never be moved again (see fa2_no_tez).
+                assert sp.len(sp.pack(request.to_)) == 28, "BAD_RECIPIENT"
                 assert request.to_ != sp.self_address, "BAD_RECIPIENT"
                 assert request.to_ != self.data.payout, "BAD_RECIPIENT"
                 floor += sp.mul(edition.floor, request.amount)
@@ -140,6 +168,28 @@ def collection():
             if sp.amount > sp.mutez(0):
                 pay = sp.contract(sp.unit, self.data.payout).unwrap_some(error="NO_PAYOUT")
                 sp.transfer((), sp.amount, pay)
+
+        @sp.entrypoint
+        def add_commercial_rights(self, request):
+            sp.cast(request, htypes.commercial_request)
+            assert sp.sender in self.data.minters, "NOT_MINTER"
+            edition = self.data.editions.get(request.token_id, error="UNKNOWN_TOKEN")
+            floor = edition.commercial_floor.unwrap_some(error="NO_COMMERCIAL_RIGHTS")
+            assert not edition.commercial, "HAS_COMMERCIAL_RIGHTS"
+            # Only for the wallet holding the copy (so never before it exists,
+            # and never for a retired artwork, which has none).
+            key = (request.holder, request.token_id)
+            assert self.data.ledger.get(key, default=0) > 0, "NOT_HOLDER"
+            # Whichever minter sends it, the rights are paid at least their
+            # floor (never zero), and the payment goes on to the payout contract.
+            assert sp.amount >= floor, "BELOW_COMMERCIAL_FLOOR"
+            self.data.editions[request.token_id].commercial = True
+            pay = sp.contract(sp.unit, self.data.payout).unwrap_some(error="NO_PAYOUT")
+            sp.transfer((), sp.amount, pay)
+            sp.emit(
+                sp.record(token_id=request.token_id, holder=request.holder, paid=sp.amount),
+                tag="commercial_rights_added",
+            )
 
         @sp.entrypoint
         def add_history(self, token_id, text, uri):
@@ -168,6 +218,20 @@ def collection():
 
         @sp.onchain_view()
         def edition(self, token_id):
-            """The edition of `token_id` (cap, copies minted, end, floor), or None."""
+            """The edition of `token_id` (cap, copies minted, end, floors, commercial
+            rights mark), or None."""
             sp.cast(token_id, sp.nat)
             return self.data.editions.get_opt(token_id)
+
+        @sp.onchain_view()
+        def has_commercial_rights(self, token_id):
+            """True if `token_id` carries the commercial rights mark: whoever holds
+            it has the commercial rights."""
+            sp.cast(token_id, sp.nat)
+            marked = False
+            match self.data.editions.get_opt(token_id):
+                case Some(e):
+                    marked = e.commercial
+                case None:
+                    pass
+            return marked
